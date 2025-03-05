@@ -1,0 +1,26 @@
+{
+    "name": "Snow-Capped Mountains",
+    "description": "A stunning view of the majestic mountains covered in snow, under a crisp blue sky.",
+    "image": "ipfs://bafkreigicdbtehygxebrqagbhwntfvnwkjyuzwc2ai2rz5xlvcz6rmmveu",
+    "attributes": [
+      {
+        "trait_type": "Category",
+        "value": "Nature"
+      },
+      {
+        "trait_type": "Resolution",
+        "value": "5120x2880"
+      },
+      {
+        "trait_type": "Theme",
+        "value": "Winter"
+      },
+      {
+        "trait_type": "Color Palette",
+        "value": "White & Blue"
+      }
+    ],
+    "creator": "Mountain Explorer",
+    "external_url": "https://example.com/nft/snow-mountains"
+  }
+  

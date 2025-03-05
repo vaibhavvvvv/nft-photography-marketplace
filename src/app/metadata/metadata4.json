@@ -1,0 +1,26 @@
+{
+    "name": "Serene Lake Reflection",
+    "description": "A peaceful lake reflecting the clear sky and surrounding trees, creating a mesmerizing mirror effect.",
+    "image": "ipfs://bafkreiar37rqkxw4sekxvowpuffe5r3xytibb53w7auwgaznfgmopbsoqy",
+    "attributes": [
+      {
+        "trait_type": "Category",
+        "value": "Nature"
+      },
+      {
+        "trait_type": "Resolution",
+        "value": "4000x2500"
+      },
+      {
+        "trait_type": "Theme",
+        "value": "Reflection"
+      },
+      {
+        "trait_type": "Color Palette",
+        "value": "Blue & Green"
+      }
+    ],
+    "creator": "Nature Enthusiast",
+    "external_url": "https://example.com/nft/serene-lake"
+  }
+  

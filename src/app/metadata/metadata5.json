@@ -1,0 +1,26 @@
+{
+    "name": "Autumn in the Woods",
+    "description": "A scenic autumn pathway covered with golden leaves, capturing the beauty of fall.",
+    "image": "ipfs://bafkreih4jsbqxs2pozcw7mpnjel3sm2mfxqw53pcn3fgziojoxsjinzdum",
+    "attributes": [
+      {
+        "trait_type": "Category",
+        "value": "Nature"
+      },
+      {
+        "trait_type": "Resolution",
+        "value": "4500x3000"
+      },
+      {
+        "trait_type": "Theme",
+        "value": "Autumn"
+      },
+      {
+        "trait_type": "Color Palette",
+        "value": "Orange & Brown"
+      }
+    ],
+    "creator": "Forest Walker",
+    "external_url": "https://example.com/nft/autumn-woods"
+  }
+  

@@ -1,0 +1,26 @@
+{
+    "name": "Golden Sunset Over Hills",
+    "description": "A magnificent sunset painting the hills with golden hues, showcasing the beauty of the natural world.",
+    "image": "ipfs://bafkreiafv7hmtf6jd6qkweq4ma7gpgjn74ct2kgi2dcwp2cfp7cejtrt5m",
+    "attributes": [
+      {
+        "trait_type": "Category",
+        "value": "Nature"
+      },
+      {
+        "trait_type": "Resolution",
+        "value": "3840x2160"
+      },
+      {
+        "trait_type": "Theme",
+        "value": "Sunset"
+      },
+      {
+        "trait_type": "Color Palette",
+        "value": "Orange & Yellow"
+      }
+    ],
+    "creator": "John Doe",
+    "external_url": "https://example.com/nft/golden-sunset"
+  }
+  

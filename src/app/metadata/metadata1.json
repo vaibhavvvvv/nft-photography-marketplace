@@ -1,0 +1,26 @@
+{
+    "name": "Mystical Forest",
+    "description": "A breathtaking view of a misty forest at dawn, capturing the essence of tranquility and untouched wilderness.",
+    "image": "ipfs://bafybeidnajf3p6h32ebzaur4ctyu2ptk7w64rkklndw7rjd46ccgxcv2je",
+    "attributes": [
+      {
+        "trait_type": "Category",
+        "value": "Nature"
+      },
+      {
+        "trait_type": "Resolution",
+        "value": "4096x2160"
+      },
+      {
+        "trait_type": "Theme",
+        "value": "Mystical"
+      },
+      {
+        "trait_type": "Color Palette",
+        "value": "Green & Foggy"
+      }
+    ],
+    "creator": "Anonymous Photographer",
+    "external_url": "https://example.com/nft/mystical-forest"
+  }
+  

@@ -1,0 +1,26 @@
+{
+    "name": "Ocean Waves at Sunrise",
+    "description": "The ocean waves crash against the shore as the sun rises, creating a stunning and peaceful view.",
+    "image": "ipfs://bafkreih4ij2g2q6qjzfxku46f2zpj2giorijzchbkjk5nqgssezwyv6xeu",
+    "attributes": [
+      {
+        "trait_type": "Category",
+        "value": "Nature"
+      },
+      {
+        "trait_type": "Resolution",
+        "value": "4096x2160"
+      },
+      {
+        "trait_type": "Theme",
+        "value": "Ocean"
+      },
+      {
+        "trait_type": "Color Palette",
+        "value": "Blue & Golden"
+      }
+    ],
+    "creator": "Seaside Photographer",
+    "external_url": "https://example.com/nft/ocean-waves"
+  }
+  
