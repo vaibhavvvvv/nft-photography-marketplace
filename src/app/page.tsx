@@ -1,25 +1,14 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "./constants/abi";
-import { useDropzone } from "react-dropzone";
 import Image from "next/image";
-import { uploadImageToPinata, uploadMetadataToPinata } from "@/utils/pinata";
 import BackgroundSlideshow from "@/components/BackgroundSlideshow";
 import ProgressLoader from "@/components/ProgressLoader";
-import ConnectWallet from "@/components/ConnectWallet";
+// import ConnectWallet from "@/components/ConnectWallet";
 import { createClient } from '@supabase/supabase-js'
-
-interface NFTMetadata {
-  name: string;
-  description: string;
-  image: string;
-  attributes: Array<{
-    trait_type: string;
-    value: string;
-  }>;
-}
+import EthereumProvider from '@/app/types/global';
 
 interface NFTImage {
   id: string;
@@ -28,7 +17,7 @@ interface NFTImage {
   isMinted: boolean;
 }
 
-interface MintedNFT {
+interface MintedNFTRecord {
   image_id: string;
 }
 
@@ -78,11 +67,6 @@ const supabase = createClient(
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>("");
-  const [mintedNFTs, setMintedNFTs] = useState<NFTImage[]>([]);
-  const [currentStep, setCurrentStep] = useState<'upload' | 'preview' | 'minting'>('upload');
-  const [uploadStatus, setUploadStatus] = useState<string>("");
   const [images, setImages] = useState<NFTImage[]>(PREDEFINED_IMAGES);
   const [currentMintingId, setCurrentMintingId] = useState<string | null>(null);
   const [miningStatus, setMiningStatus] = useState<{
@@ -101,24 +85,30 @@ export default function Home() {
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [isWalletConnected, setIsWalletConnected] = useState(false);
 
-  // Check if wallet is already connected
-  useEffect(() => {
-    checkWalletConnection();
-  }, []);
-
   const checkWalletConnection = async () => {
     if (window.ethereum) {
       try {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' }) as string[];
         if (accounts.length > 0) {
           setWalletAddress(accounts[0]);
           setIsWalletConnected(true);
+        } else {
+          disconnectWallet();
         }
       } catch (error) {
         console.error("Error checking wallet connection:", error);
+        disconnectWallet();
       }
     }
   };
+
+  // Initial check on load
+  useEffect(() => {
+    const isConnected = localStorage.getItem('isWalletConnected') === 'true';
+    if (isConnected) {
+      checkWalletConnection();
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const connectWallet = async () => {
     if (!window.ethereum) {
@@ -127,35 +117,50 @@ export default function Home() {
     }
 
     try {
+      // Always request accounts to force MetaMask popup
+      await window.ethereum.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }]
+      });
+      
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
-      });
-      setWalletAddress(accounts[0]);
-      setIsWalletConnected(true);
-      
-      // Switch to Base Sepolia network after connecting
-      await switchToBaseSepolia();
+      }) as string[];
+
+      if (accounts.length > 0) {
+        setWalletAddress(accounts[0]);
+        setIsWalletConnected(true);
+        localStorage.setItem('isWalletConnected', 'true');
+        await switchToBaseSepolia();
+      } else {
+        throw new Error('No accounts found');
+      }
     } catch (error) {
       console.error("Error connecting wallet:", error);
       alert("Error connecting wallet. Please try again.");
+      disconnectWallet();
     }
   };
 
-  // Listen for account changes
   useEffect(() => {
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setWalletAddress(accounts[0]);
+      window.ethereum.on('accountsChanged', (accounts: unknown) => {
+        const typedAccounts = accounts as string[];
+        if (typedAccounts.length > 0) {
+          setWalletAddress(typedAccounts[0]);
           setIsWalletConnected(true);
+          localStorage.setItem('isWalletConnected', 'true');
         } else {
-          setWalletAddress("");
-          setIsWalletConnected(false);
+          disconnectWallet();
         }
       });
 
-      window.ethereum.on('chainChanged', (_chainId: string) => {
+      window.ethereum.on('chainChanged', () => {
         window.location.reload();
+      });
+
+      window.ethereum.on('disconnect', () => {
+        disconnectWallet();
       });
     }
 
@@ -166,85 +171,15 @@ export default function Home() {
     };
   }, []);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    setUploadedImage(file);
-    setImagePreview(URL.createObjectURL(file));
-    setCurrentStep('preview');
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif']
-    },
-    maxFiles: 1
-  });
-
-  const uploadToIPFS = async (image: File) => {
-    try {
-      setMiningStatus(prev => ({
-        ...prev,
-        steps: prev.steps.map((step, i) => 
-          i === 0 ? { ...step, status: 'current' } : step
-        )
-      }));
-      
-      const imageUrl = await uploadImageToPinata(image);
-
-      setMiningStatus(prev => ({
-        ...prev,
-        steps: prev.steps.map((step, i) => 
-          i === 0 ? { ...step, status: 'completed' } :
-          i === 1 ? { ...step, status: 'current' } :
-          step
-        )
-      }));
-
-      const metadata = {
-        name: `Nature NFT #${mintedNFTs.length + 1}`,
-        description: "A beautiful piece of nature captured in an NFT",
-        image: imageUrl,
-        attributes: [
-          {
-            trait_type: "Collection",
-            value: "Nature Series"
-          },
-          {
-            trait_type: "Edition",
-            value: `${mintedNFTs.length + 1}`
-          },
-          {
-            trait_type: "Created",
-            value: new Date().toISOString()
-          }
-        ]
-      };
-
-      const metadataUrl = await uploadMetadataToPinata(metadata);
-      
-      setMiningStatus(prev => ({
-        ...prev,
-        steps: prev.steps.map((step, i) => 
-          i <= 1 ? { ...step, status: 'completed' } :
-          i === 2 ? { ...step, status: 'current' } :
-          step
-        )
-      }));
-
-      return metadataUrl;
-    } catch (error) {
-      console.error("Error uploading to IPFS:", error);
-      throw error;
-    }
-  };
-
   const addBaseSepolia = async () => {
     try {
+      if (!window.ethereum) {
+        throw new Error("MetaMask is not installed");
+      }
       await window.ethereum.request({
         method: 'wallet_addEthereumChain',
         params: [{
-          chainId: '0x14A34',  // 84532 in hexadecimal
+          chainId: '0x14A34',
           chainName: 'Base Sepolia',
           nativeCurrency: {
             name: 'ETH',
@@ -263,12 +198,15 @@ export default function Home() {
 
   const switchToBaseSepolia = async () => {
     try {
+      if (!window.ethereum) {
+        throw new Error("MetaMask is not installed");
+      }
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x14A34' }], // Base Sepolia chainId (84532)
+        params: [{ chainId: '0x14A34' }],
       });
-    } catch (error: any) {
-      if (error.code === 4902) {
+    } catch (error: unknown) {
+      if (typeof error === 'object' && error && 'code' in error && error.code === 4902) {
         await addBaseSepolia();
       } else {
         throw error;
@@ -286,7 +224,9 @@ export default function Home() {
       setLoading(true);
       setCurrentMintingId(imageId);
       
-      // Check if already minted in Supabase
+      const image = images.find(img => img.id === imageId);
+      if (!image) return;
+
       const { data: mintedData } = await supabase
         .from('minted_nfts')
         .select('*')
@@ -295,19 +235,13 @@ export default function Home() {
 
       if (mintedData) {
         alert("This NFT has already been minted!");
-        setLoading(false);
-        setCurrentMintingId(null);
         return;
       }
-
-      // Continue with minting process...
       await switchToBaseSepolia();
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new ethers.providers.Web3Provider(window.ethereum as EthereumProvider);
       const signer = provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
       const mintPrice = ethers.utils.parseEther("0.02");
-      
-      // Update status to show transaction approval
       setMiningStatus(prev => ({
         ...prev,
         steps: prev.steps.map((step, i) => 
@@ -315,9 +249,8 @@ export default function Home() {
         )
       }));
       
-      const tx = await contract.safeMint(images.find(img => img.id === imageId)?.ipfsHash || '', { value: mintPrice });
+      const tx = await contract.safeMint(image.ipfsHash, { value: mintPrice });
 
-      // Update status to show minting in progress
       setMiningStatus(prev => ({
         ...prev,
         txHash: tx.hash,
@@ -330,7 +263,6 @@ export default function Home() {
 
       await tx.wait();
 
-      // After successful minting, update Supabase
       const { error } = await supabase
         .from('minted_nfts')
         .insert([{ 
@@ -340,17 +272,12 @@ export default function Home() {
           minted_at: new Date().toISOString()
         }]);
 
-      if (error) {
-        console.error("Error recording mint:", error);
-        throw error;
-      }
+      if (error) throw error;
 
-      // Update local state
       setImages(prev => prev.map(img => 
         img.id === imageId ? { ...img, isMinted: true } : img
       ));
 
-      // Update status to show completion
       setMiningStatus(prev => ({
         ...prev,
         steps: prev.steps.map(step => ({ ...step, status: 'completed' }))
@@ -364,7 +291,6 @@ export default function Home() {
     } finally {
       setLoading(false);
       setCurrentMintingId(null);
-      // Reset mining status
       setMiningStatus({
         steps: [
           { label: 'Approve Transaction', status: 'pending' },
@@ -375,57 +301,70 @@ export default function Home() {
     }
   };
 
-  // Check minted status on load and after wallet connection
   useEffect(() => {
     const checkMintedStatus = async () => {
-      if (!walletAddress) return;
-
-      console.log("Checking minted status for wallet:", walletAddress);
-      
       const { data: mintedNFTs, error } = await supabase
         .from('minted_nfts')
-        .select('image_id')
-        .eq('wallet_address', walletAddress);
+        .select('image_id');
 
       if (error) {
         console.error("Error fetching minted NFTs:", error);
         return;
       }
 
-      console.log("Minted NFTs:", mintedNFTs);
-
       if (mintedNFTs) {
         setImages(prev => prev.map(img => ({
           ...img,
-          isMinted: mintedNFTs.some(nft => nft.image_id === img.id)
+          isMinted: mintedNFTs.some((nft: MintedNFTRecord) => nft.image_id === img.id)
         })));
       }
     };
 
-    if (isWalletConnected && walletAddress) {
-      checkMintedStatus();
-    }
-  }, [walletAddress, isWalletConnected]);
+    checkMintedStatus();
+  }, []);
+
+  const disconnectWallet = () => {
+    setWalletAddress("");
+    setIsWalletConnected(false);
+    localStorage.removeItem('isWalletConnected');
+  };
 
   return (
     <>
       <BackgroundSlideshow />
       <main className="min-h-screen relative">
-        <ConnectWallet 
-          isConnected={isWalletConnected}
-          address={walletAddress}
-          onConnect={connectWallet}
-        />
+        <div className="absolute top-4 right-4 z-10">
+          {isWalletConnected ? (
+            <div className="flex items-center gap-2">
+              <div className="bg-white/10 backdrop-blur-lg rounded-full px-4 py-2 border border-white/20">
+                <p className="text-emerald-200 text-sm">
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </p>
+              </div>
+              <button
+                onClick={disconnectWallet}
+                className="bg-red-500/50 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition-colors"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={connectWallet}
+              className="bg-emerald-500/50 hover:bg-emerald-600 text-white font-bold py-2 px-6 rounded-full transition-colors"
+            >
+              Connect Wallet
+            </button>
+          )}
+        </div>
         
         <div className="max-w-6xl mx-auto px-4 py-12">
-          {/* Enhanced Title */}
           <h1 className="text-6xl md:text-7xl font-bold text-center mb-8">
             <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-emerald-300 animate-gradient-x">
               Nature NFT Collection
             </span>
           </h1>
 
-          {/* Enhanced Contract Info */}
           <div className="text-center mb-8">
             <div className="inline-block bg-white/5 backdrop-blur-lg rounded-lg p-6 border border-white/10 transform hover:scale-105 transition-all duration-300">
               <p className="text-emerald-200 mb-4 text-lg">
@@ -447,7 +386,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* NFT Gallery */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {images.map((image) => (
               <div 
@@ -471,7 +409,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => mintNFT(image.id)}
-                  disabled={!!(image.isMinted || loading || !isWalletConnected || (currentMintingId && currentMintingId !== image.id))}
+                  disabled={Boolean(image.isMinted || loading || !isWalletConnected || (currentMintingId && currentMintingId !== image.id))}
                   className={`w-full py-2 px-4 rounded-lg font-bold transition-colors ${
                     image.isMinted
                       ? 'bg-gray-500 cursor-not-allowed'
@@ -488,7 +426,6 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Your Minted NFTs Section */}
           {isWalletConnected && images.some(img => img.isMinted) && (
             <div className="mt-16">
               <h2 className="text-3xl font-bold text-center mb-8">
@@ -527,7 +464,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Minting Progress Modal */}
           {loading && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
               <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 max-w-md w-full mx-4">
