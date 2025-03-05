@@ -251,7 +251,7 @@ export default function Home() {
       const provider = new ethers.providers.Web3Provider(window.ethereum as EthereumProvider);
       const signer = provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-      const mintPrice = ethers.utils.parseEther("0.02");
+      const mintPrice = ethers.utils.parseEther("2");
       setMiningStatus(prev => ({
         ...prev,
         steps: prev.steps.map((step, i) => 
@@ -424,7 +424,7 @@ export default function Home() {
               </p>
               <p className="text-2xl font-bold">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-                  Mint Price: 0.02 {NETWORK_CONFIG.nativeCurrency.symbol}
+                  Mint Price: 2 {NETWORK_CONFIG.nativeCurrency.symbol}
                 </span>
               </p>
             </div>
@@ -464,7 +464,7 @@ export default function Home() {
                     ? 'Minted'
                     : currentMintingId === image.id
                     ? 'Minting...'
-                    : 'Mint (0.02 ETH)'}
+                    : 'Mint (2 ETH)'}
                 </button>
               </div>
             ))}
