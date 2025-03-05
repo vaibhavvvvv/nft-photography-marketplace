@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ethers } from "ethers";
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from "./constants/abi";
+import { CONTRACT_ABI } from "./constants/abi";
 import Image from "next/image";
 import BackgroundSlideshow from "@/components/BackgroundSlideshow";
 import ProgressLoader from "@/components/ProgressLoader";
@@ -19,43 +19,33 @@ interface NFTImage {
 
 interface MintedNFTRecord {
   image_id: string;
+  wallet_address: string;
+}
+
+interface MintError {
+  data?: {
+    message: string;
+  };
+  message?: string;
 }
 
 const PREDEFINED_IMAGES: NFTImage[] = [
   {
     id: '1',
-    src: '/nftImages/1.jpg',
-    ipfsHash: 'ipfs://bafkreicmjuaafim57ioyl6ewifo5bsimwyukk3uj6cdxd7h3kv2p7qyoza',
+    src: '/nftImages/House Sparrow in a clump.JPG',
+    ipfsHash: 'ipfs://bafkreihazhbg47oqxbvnjpqqfvfgvgjm3w6n7wkqvuo4oxfoiza23scevq',
     isMinted: false
   },
   {
     id: '2',
-    src: '/nftImages/2.jpg',
-    ipfsHash: 'ipfs://bafkreidu6bqmutzegy5f6xuab5mvnsbv3lhl4ro5mbqkrbp3hrd737cm5e',
+    src: '/nftImages/House sparrow on an artificial nest.JPG',
+    ipfsHash: 'ipfs://bafkreidibqqthkdx5zbugbh3byzbdrzfkuhqkbuuyor3chky5rml3weajy',
     isMinted: false
   },
   {
     id: '3',
-    src: '/nftImages/3.jpg',
-    ipfsHash: 'ipfs://bafkreicsha3adgjrldgqm3b7rzawtd7z5gxo6nwxauzicv43vkw7w5jcla',
-    isMinted: false
-  },
-  {
-    id: '4',
-    src: '/nftImages/4.jpg',
-    ipfsHash: 'ipfs://bafkreiannmu23pgxtfw25tdl2xl5etknqoqtojh4ftbisjfmcoc3x6fuqe',
-    isMinted: false
-  },
-  {
-    id: '5',
-    src: '/nftImages/5.jpg',
-    ipfsHash: 'ipfs://bafkreidtwvyoq3ygq7gn4tij4pr6hqh7xo36to3u4kmtnqk6gr2cjnp7ta',
-    isMinted: false
-  },
-  {
-    id: '6',
-    src: '/nftImages/6.jpg',
-    ipfsHash: 'ipfs://bafkreieutd7xmi4is5bluxy55ep6tmq7ehi3h4j7tioavxtzep3hrzdloi',
+    src: '/nftImages/House Sparrow with beak open.JPG',
+    ipfsHash: 'ipfs://bafkreihp2u7u6giwqnxcmajooouba6cydiqp3ivcsytrqjjiwrbvhce77u',
     isMinted: false
   }
 ];
@@ -64,6 +54,26 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+const NETWORK_CONFIG = {
+  chainId: process.env.NEXT_PUBLIC_CHAIN_ID!,
+  chainName: process.env.NEXT_PUBLIC_NETWORK_NAME!,
+  rpcUrls: [process.env.NEXT_PUBLIC_RPC_URL!],
+  blockExplorerUrls: [process.env.NEXT_PUBLIC_EXPLORER_URL!],
+  nativeCurrency: {
+    name: process.env.NEXT_PUBLIC_NATIVE_CURRENCY_NAME!,
+    symbol: process.env.NEXT_PUBLIC_NATIVE_CURRENCY_SYMBOL!,
+    decimals: parseInt(process.env.NEXT_PUBLIC_NATIVE_CURRENCY_DECIMALS!)
+  }
+};
+
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
+
+// Add type for error
+interface SwitchNetworkError {
+  code: number;
+  message: string;
+}
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
@@ -84,6 +94,7 @@ export default function Home() {
   });
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [mintedNFTs, setMintedNFTs] = useState<MintedNFTRecord[]>([]);
 
   const checkWalletConnection = async () => {
     if (window.ethereum) {
@@ -110,6 +121,49 @@ export default function Home() {
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  const addNetwork = async () => {
+    if (!window.ethereum) return;
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: NETWORK_CONFIG.chainId,
+          chainName: NETWORK_CONFIG.chainName,
+          nativeCurrency: NETWORK_CONFIG.nativeCurrency,
+          rpcUrls: NETWORK_CONFIG.rpcUrls,
+          blockExplorerUrls: NETWORK_CONFIG.blockExplorerUrls
+        }]
+      });
+    } catch (error) {
+      console.error('Error adding network:', error);
+      throw error;
+    }
+  };
+
+  const switchNetwork = async () => {
+    if (!window.ethereum) return;
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: NETWORK_CONFIG.chainId }],
+      });
+    } catch (error: unknown) {
+      // Type guard for the error
+      if (
+        typeof error === 'object' && 
+        error !== null && 
+        'code' in error && 
+        (error as SwitchNetworkError).code === 4902
+      ) {
+        await addNetwork();
+      } else {
+        throw error;
+      }
+    }
+  };
+
   const connectWallet = async () => {
     if (!window.ethereum) {
       alert("Please install MetaMask!");
@@ -117,7 +171,6 @@ export default function Home() {
     }
 
     try {
-      // Always request accounts to force MetaMask popup
       await window.ethereum.request({
         method: 'wallet_requestPermissions',
         params: [{ eth_accounts: {} }]
@@ -131,7 +184,7 @@ export default function Home() {
         setWalletAddress(accounts[0]);
         setIsWalletConnected(true);
         localStorage.setItem('isWalletConnected', 'true');
-        await switchToBaseSepolia();
+        await switchNetwork();
       } else {
         throw new Error('No accounts found');
       }
@@ -171,49 +224,6 @@ export default function Home() {
     };
   }, []);
 
-  const addBaseSepolia = async () => {
-    try {
-      if (!window.ethereum) {
-        throw new Error("MetaMask is not installed");
-      }
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: '0x14A34',
-          chainName: 'Base Sepolia',
-          nativeCurrency: {
-            name: 'ETH',
-            symbol: 'ETH',
-            decimals: 18
-          },
-          rpcUrls: ['https://sepolia.base.org'],
-          blockExplorerUrls: ['https://sepolia.basescan.org']
-        }]
-      });
-    } catch (error) {
-      console.error('Error adding Base Sepolia:', error);
-      throw error;
-    }
-  };
-
-  const switchToBaseSepolia = async () => {
-    try {
-      if (!window.ethereum) {
-        throw new Error("MetaMask is not installed");
-      }
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x14A34' }],
-      });
-    } catch (error: unknown) {
-      if (typeof error === 'object' && error && 'code' in error && error.code === 4902) {
-        await addBaseSepolia();
-      } else {
-        throw error;
-      }
-    }
-  };
-
   const mintNFT = async (imageId: string) => {
     if (!isWalletConnected) {
       alert("Please connect your wallet first!");
@@ -237,7 +247,7 @@ export default function Home() {
         alert("This NFT has already been minted!");
         return;
       }
-      await switchToBaseSepolia();
+      await switchNetwork();
       const provider = new ethers.providers.Web3Provider(window.ethereum as EthereumProvider);
       const signer = provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
@@ -285,9 +295,12 @@ export default function Home() {
 
       alert("NFT minted successfully!");
       
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error minting NFT:", error);
-      alert("Error minting NFT. Check console for details.");
+      // Type guard to check if error matches our interface
+      const mintError = error as MintError;
+      const errorMessage = mintError.data?.message || mintError.message || "Unknown error occurred";
+      alert("Error minting NFT. Check console for details. " + errorMessage);
     } finally {
       setLoading(false);
       setCurrentMintingId(null);
@@ -303,19 +316,20 @@ export default function Home() {
 
   useEffect(() => {
     const checkMintedStatus = async () => {
-      const { data: mintedNFTs, error } = await supabase
+      const { data: mintedData, error } = await supabase
         .from('minted_nfts')
-        .select('image_id');
+        .select('image_id, wallet_address');
 
       if (error) {
         console.error("Error fetching minted NFTs:", error);
         return;
       }
 
-      if (mintedNFTs) {
+      if (mintedData) {
+        setMintedNFTs(mintedData);
         setImages(prev => prev.map(img => ({
           ...img,
-          isMinted: mintedNFTs.some((nft: MintedNFTRecord) => nft.image_id === img.id)
+          isMinted: mintedData.some((nft: MintedNFTRecord) => nft.image_id === img.id)
         })));
       }
     };
@@ -359,28 +373,58 @@ export default function Home() {
         </div>
         
         <div className="max-w-6xl mx-auto px-4 py-12">
-          <h1 className="text-6xl md:text-7xl font-bold text-center mb-8">
-            <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-emerald-300 animate-gradient-x">
-              Nature NFT Collection
-            </span>
-          </h1>
+          <div className="flex flex-col md:flex-row justify-center items-center gap-2 mb-8">
+            <div className="relative w-[300px] mt-4 h-[100px]">
+              <Image
+                src="/indian-sparrow.jpg"
+                alt="Indian Sparrow"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
+            <div className="relative w-[300px] h-[100px]">
+              <Image
+                src="/nft-collection.jpg"
+                alt="NFT Collection"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
+          </div>
 
           <div className="text-center mb-8">
-            <div className="inline-block bg-white/5 backdrop-blur-lg rounded-lg p-6 border border-white/10 transform hover:scale-105 transition-all duration-300">
-              <p className="text-emerald-200 mb-4 text-lg">
-                Contract Address:{' '}
+            <div className="inline-block bg-white/5 backdrop-blur-lg rounded-lg p-6 border border-white/10">
+            <p className="text-emerald-200 mb-4 text-lg">
+                Contract Address:{" "}
                 <a
-                  href="https://sepolia.basescan.org/address/0x7eDE2f5455Bc9498c5B79CF5F7ef16e4Cc5Df617"
+                  href={`${NETWORK_CONFIG.blockExplorerUrls[0]}/address/${CONTRACT_ADDRESS}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 hover:from-emerald-300 hover:to-teal-200 font-mono transition-all duration-300"
                 >
-                  {CONTRACT_ADDRESS}
+                  <span className="hidden md:inline">{CONTRACT_ADDRESS}</span>
+                  <span className="inline md:hidden">
+                    {CONTRACT_ADDRESS.slice(0, 6)}...{CONTRACT_ADDRESS.slice(-4)}
+                  </span>
                 </a>
+              </p>
+              <p className="text-emerald-200 mb-4 text-lg">
+                Network:{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 font-bold">
+                  {NETWORK_CONFIG.chainName}
+                </span>
+              </p>
+              <p className="text-emerald-200 mb-4 text-lg">
+                Currency:{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 font-bold">
+                  {NETWORK_CONFIG.nativeCurrency.name}
+                </span>
               </p>
               <p className="text-2xl font-bold">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
-                  Mint Price: 0.02 ETH
+                  Mint Price: 0.02 {NETWORK_CONFIG.nativeCurrency.symbol}
                 </span>
               </p>
             </div>
@@ -434,33 +478,49 @@ export default function Home() {
                 </span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {images.filter(img => img.isMinted).map((image) => (
-                  <div 
-                    key={image.id}
-                    className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20 transform hover:scale-105 transition-all duration-300"
-                  >
-                    <div className="relative aspect-square mb-4 rounded-lg overflow-hidden">
-                      <Image
-                        src={image.src}
-                        alt={`Nature NFT ${image.id}`}
-                        fill
-                        className="object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-center p-4">
-                        <span className="text-white font-bold text-lg">NFT #{image.id}</span>
-                      </div>
-                    </div>
-                    <a
-                      href={`https://sepolia.basescan.org/token/${CONTRACT_ADDRESS}?a=${walletAddress}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block w-full text-center py-2 px-4 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/50 text-white font-bold transition-colors"
+                {images
+                  .filter(img => {
+                    const mintedByCurrentWallet = mintedNFTs.some(
+                      nft => nft.image_id === img.id && nft.wallet_address.toLowerCase() === walletAddress.toLowerCase()
+                    );
+                    return mintedByCurrentWallet;
+                  })
+                  .map((image) => (
+                    <div 
+                      key={image.id}
+                      className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20 transform hover:scale-105 transition-all duration-300"
                     >
-                      View on Explorer
-                    </a>
-                  </div>
-                ))}
+                      <div className="relative aspect-square mb-4 rounded-lg overflow-hidden">
+                        <Image
+                          src={image.src}
+                          alt={`Nature NFT ${image.id}`}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-center p-4">
+                          <span className="text-white font-bold text-lg">NFT #{image.id}</span>
+                        </div>
+                      </div>
+                      <a
+                        href={`${NETWORK_CONFIG.blockExplorerUrls[0]}/token/${CONTRACT_ADDRESS}?a=${walletAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full text-center py-2 px-4 rounded-lg bg-emerald-500/30 hover:bg-emerald-500/50 text-white font-bold transition-colors"
+                      >
+                        View on Explorer
+                      </a>
+                    </div>
+                  ))}
               </div>
+              {images.filter(img => 
+                mintedNFTs.some(
+                  nft => nft.image_id === img.id && nft.wallet_address.toLowerCase() === walletAddress.toLowerCase()
+                )
+              ).length === 0 && (
+                <p className="text-center text-emerald-200 mt-4">
+                  You haven&apos;t minted any NFTs yet
+                </p>
+              )}
             </div>
           )}
 
@@ -472,7 +532,7 @@ export default function Home() {
                   <div className="text-center mt-6">
                     <p className="text-emerald-200 mb-2">Transaction Hash:</p>
                     <a 
-                      href={`https://sepolia.basescan.org/tx/${miningStatus.txHash}`}
+                      href={`${NETWORK_CONFIG.blockExplorerUrls[0]}/tx/${miningStatus.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-emerald-400 hover:text-emerald-300 break-all"
